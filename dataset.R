@@ -73,15 +73,15 @@ d$boss_last_name <- unlist(lapply(d$boss_ID, function(x){d$last_name[d$ID == x][
            boss_last_name = last_name,
            boss_race = race)
 # Name Popularity (binary)
-  name_popularity <- tidytuesdayR::tt_load(2022, week = 12)$babynames
-  name_popularity <- name_popularity %>% 
-    rename(first_name = name) %>% 
-    filter(first_name %in% d$first_name[d$country == "United States (USA)"]) %>% 
-    group_by(first_name) %>% 
-    summarise(prop = mean(prop)) %>% 
-    ungroup() %>% 
-    mutate(common_name = as.integer(prop > .001)) %>% 
-    select(-prop)
+name_popularity <- tidytuesdayR::tt_load(2022, week = 12)$babynames
+name_popularity <- name_popularity %>%
+  rename(first_name = name) %>%
+  filter(first_name %in% d$first_name[d$country == "United States (USA)"]) %>%
+  group_by(first_name) %>%
+  summarise(prop = mean(prop)) %>%
+  ungroup() %>%
+  mutate(common_name = as.integer(prop > .001)) %>%
+  select(-prop)
 
 d_america <- d %>% 
   # only US for now
@@ -96,7 +96,7 @@ d_america <- d %>%
 # Balanced Dataset for Modeling
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-companies_draw <- sample(unique(d_america$company_ID), 100)
+companies_draw <- sample(unique(d_america$company_ID), 250)
 
 # Temporary resampled training data
 d_america_train <- d_america %>% 
@@ -131,10 +131,10 @@ d_america_train <- d_america_train %>%
 d_america_train <- d_america_train %>% 
   left_join(predicted_gender, multiple = "any") %>% 
   left_join(boss_predicted_gender, multiple = "any") %>% 
-  mutate(dyad_gender = case_when(boss_gender == 0 & gender == 0 ~ "both male",
-                                 boss_gender == 0 & gender == 1 ~ "boss male",
-                                 boss_gender == 1 & gender == 0 ~ "boss female",
-                                 boss_gender == 1 & gender == 1 ~ "both female"))
+  mutate(both_male = as.integer(boss_gender == 0 & gender == 0),
+         boss_male = as.integer(boss_gender == 0 & gender == 1),
+         boss_female = as.integer(boss_gender == 1 & gender == 0),
+         both_female = as.integer(boss_gender == 1 & gender == 1))
 
 # Fold in Race
 d_america_train <- d_america_train %>% 
@@ -142,71 +142,111 @@ d_america_train <- d_america_train %>%
   left_join(boss_predicted_race, multiple = "any") %>% 
   replace_na(list(race = "other", boss_race = "other")) %>% 
   # Same Race as Boss
-  mutate(dyad_race = factor(case_when(boss_race == "asian" & race == "asian" ~ "asian asian",
-                               boss_race == "asian" & race == "black" ~ "asian black",
-                               boss_race == "asian" & race == "hispanic" ~ "asian hispanic",
-                               boss_race == "asian" & race == "white" ~ "asian white",
-                               boss_race == "asian" & race == "other" ~ "asian other",
-                               boss_race == "black" & race == "asian" ~ "black asian",
-                               boss_race == "black" & race == "black" ~ "black black",
-                               boss_race == "black" & race == "hispanic" ~ "black hispanic",
-                               boss_race == "black" & race == "white" ~ "black white",
-                               boss_race == "black" & race == "other" ~ "black other",
-                               boss_race == "hispanic" & race == "asian" ~ "hispanic asian",
-                               boss_race == "hispanic" & race == "black" ~ "hispanic black",
-                               boss_race == "hispanic" & race == "hispanic" ~ "hispanic hispanic",
-                               boss_race == "hispanic" & race == "white" ~ "hispanic white",
-                               boss_race == "hispanic" & race == "other" ~ "hispanic other",
-                               boss_race == "white" & race == "asian" ~ "white asian",
-                               boss_race == "white" & race == "black" ~ "white black",
-                               boss_race == "white" & race == "hispanic" ~ "white hispanic",
-                               boss_race == "white" & race == "white" ~ "white white",
-                               boss_race == "white" & race == "other" ~ "white other",
-                               boss_race == "other" & race == "asian" ~ "other asian",
-                               boss_race == "other" & race == "black" ~ "other black",
-                               boss_race == "other" & race == "hispanic" ~ "other hispanic",
-                               boss_race == "other" & race == "white" ~ "other white",
-                               boss_race == "other" & race == "other" ~ "other other")))
+  mutate(both_asian = as.integer(boss_race == "asian" & race == "asian"),
+         both_black = as.integer(boss_race == "black" & race == "black"),
+         both_hispanic = as.integer(boss_race == "hispanic" & race == "hispanic"),
+         both_white = as.integer(boss_race == "white" & race == "white"),
+         boss_white = as.integer(boss_race == "white" & race != "white"))
 
 # Fold in Name Popularity
 d_america_train <- d_america_train %>% 
-  left_join(name_popularity, multiple = "any") %>% 
+  left_join(name_popularity, multiple = "any") %>%
   left_join(name_popularity %>% rename(boss_first_name = first_name,
-                                       boss_common_name = common_name), multiple = "any") %>% 
+                                       boss_common_name = common_name), multiple = "any") %>%
   # Unrecognized names are for sure uncommon
-  replace_na(list(common_name = 0, boss_common_name = 0)) %>% 
-  mutate(dyad_name_popularity = case_when(boss_common_name == 0 & common_name == 0 ~ "both common",
-                                          boss_common_name == 0 & common_name == 1 ~ "boss uncommon",
-                                          boss_common_name == 1 & common_name == 0 ~ "boss common",
-                                          boss_common_name == 1 & common_name == 1 ~ "both uncommon"))
+  replace_na(list(common_name = 0, boss_common_name = 0)) %>%
+  mutate(both_uncommon_names = as.integer(boss_common_name == 0 & common_name == 0))
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # Modeling
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 # Re-run "Balanced Dataset for Modeling" for resampled false cases
-
-mod_america_bayes0 <- brm(real ~ 0 + same_first_name + dyad_gender + dyad_name_popularity + dyad_race + (0 + same_first_name + dyad_gender + dyad_name_popularity + dyad_race | company_ID),
+mod_america_bayes5 <- brm(real ~ 0 + same_first_name + both_uncommon_names + both_male + boss_male + boss_female + both_female + both_asian + both_black + both_hispanic + both_white + boss_white + (0 + same_first_name + both_uncommon_names + both_male + boss_male + boss_female + both_female + both_asian + both_black + both_hispanic + both_white + boss_white | company_ID),
                          data = d_america_train,
                          family = bernoulli(),
                          prior = c(
-                           prior(normal(0, 1), class = "b")
+                           prior(normal(0, 1), class = "b"),
+                           prior(student_t(4, 0, 1), class = "sd")
                          ),
-                         iter = 7000,
-                         warmup = 1000,
+                         iter = 8000,
+                         warmup = 2000,
                          cores = 4)
 
 # Combine models trained on resampled false cases
-mod_america_bayes_combined <- combine_models(mod_america_bayes1, mod_america_bayes2, check_data = FALSE)
+full_vars <- head(variables(mod_america_bayes0), 11)
+
+mod_america_posterior_combined <- bind_rows( lapply( c(
+  as_draws(mod_america_bayes0, variable = full_vars),
+  as_draws(mod_america_bayes1, variable = full_vars),
+  as_draws(mod_america_bayes2, variable = full_vars),
+  as_draws(mod_america_bayes3, variable = full_vars),
+  as_draws(mod_america_bayes4, variable = full_vars),
+  as_draws(mod_america_bayes5, variable = full_vars)
+  ), as_tibble ) )
+
+mod_america_posterior_medians <- mod_america_posterior_combined %>% 
+  summarise(across(everything(), ~ median(.x, na.rm = TRUE))) %>% as.list()
+
 summary(mod_america_bayes1)
-as_draws(mod_america_bayes1, 
-         variable = c("b_same_first_name", "b_dyad_genderbossfemale", "b_dyad_genderbossmale", 
-                      "b_dyad_genderbothfemale", "b_dyad_genderbothmale", "b_raceasian:same_race", 
-                      "b_raceblack:same_race", "b_racehispanic:same_race", "b_raceother:same_race", 
-                      "b_racewhite:same_race"))
-pairs(mod_america_bayes1)
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # Visualization
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
+# Posterior Distributions
+mod_america_posterior_combined %>% 
+  ggplot(aes(b_boss_white)) +
+    geom_density(fill = "skyblue") +
+    geom_vline(aes(xintercept = median(b_boss_white)), color = "red") +
+    theme_minimal()
+
+d_america_allvars <- d_america %>%
+  mutate(same_first_name = as.integer(first_name == boss_first_name)) %>%
+  left_join(predicted_gender, multiple = "any") %>%
+  left_join(boss_predicted_gender, multiple = "any") %>%
+  mutate(dyad_gender = case_when(boss_gender == 0 & gender == 0 ~ 'Both Men',
+                                 boss_gender == 0 & gender == 1 ~ 'Boss Man',
+                                 boss_gender == 1 & gender == 0 ~ 'Boss Woman',
+                                 boss_gender == 1 & gender == 1 ~ 'Both Women')) %>%
+  left_join(predicted_race, multiple = "any") %>%
+  left_join(boss_predicted_race, multiple = "any") %>%
+  replace_na(list(race = "other", boss_race = "other")) %>%
+  # Same Race as Boss
+  mutate(dyad_race = case_when(boss_race == "asian" & race == "asian" ~ 'Both Asian',
+                               boss_race == "black" & race == "black" ~ 'Both Black',
+                               boss_race == "hispanic" & race == "hispanic" ~ 'Both Hispanic',
+                               boss_race == "white" & race == "white" ~ 'Both White',
+                               boss_race == "white" & race != "white" ~ 'Boss White',
+                               .default = "Two Minorities")) %>%
+  left_join(name_popularity, multiple = "any") %>%
+  left_join(name_popularity %>% rename(boss_first_name = first_name,
+                                       boss_common_name = common_name), multiple = "any") %>%
+  # Unrecognized names are for sure uncommon
+  replace_na(list(common_name = 0, boss_common_name = 0)) %>%
+  mutate(both_uncommon_names = as.integer(boss_common_name == 0 & common_name == 0))
+
+calculated_odds <- tibble(same_first_name = 0:1,
+                          both_uncommon_names = 0:1,
+                          both_male = 0:1,
+                          boss_male = 0:1,
+                          boss_female = 0:1,
+                          both_female = 0:1,
+                          both_asian = 0:1,
+                          both_black = 0:1,
+                          both_hispanic = 0:1,
+                          both_white = 0:1,
+                          boss_white = 0:1)
+calculated_odds <- tidyr::expand(calculated_odds, !!!calculated_odds) %>% 
+  mutate(logodds = mod_america_posterior_medians$b_same_first_name*same_first_name + mod_america_posterior_medians$b_both_uncommon_names*both_uncommon_names + mod_america_posterior_medians$b_both_male*both_male + mod_america_posterior_medians$b_boss_male*boss_male + mod_america_posterior_medians$b_boss_female*boss_female + mod_america_posterior_medians$b_both_female*both_female + mod_america_posterior_medians$b_both_asian*both_asian + mod_america_posterior_medians$b_both_black*both_black + mod_america_posterior_medians$b_both_hispanic*both_hispanic + mod_america_posterior_medians$b_both_white*both_white + mod_america_posterior_medians$b_boss_white*boss_white,
+         odds = exp(logodds)) %>% 
+  select(-logodds)
+
+example_employees <- d_america_allvars %>% 
+  drop_na() %>% 
+  select(first_name, common_name, gender, race) %>% 
+  group_by(common_name, gender, race) %>% 
+  reframe(across(everything(), ~head(.x, 10)))
+  
 
 ## Idea: for gender plot, menu to control race, etc.
 
@@ -246,14 +286,3 @@ d_america %>%
 # Disclaimers:
 # - because data on gender and race are inferred from names, missing values of these
 #   variables may not be randomly distributed. 
-
-# same_first_name            0.58      0.33     0.02     1.32 1.00    13925    14508
-# dyad_genderbossfemale     -0.27      0.04    -0.36    -0.18 1.00    24994    25609
-# dyad_genderbossmale       -0.19      0.04    -0.27    -0.11 1.00    23940    25197
-# dyad_genderbothfemale      0.12      0.05     0.03     0.22 1.00    27416    24527
-# dyad_genderbothmale       -0.04      0.04    -0.11     0.03 1.00    21303    24105
-# raceasian:same_race        0.96      0.34     0.32     1.68 1.00    35770    20771
-# raceblack:same_race        0.55      0.94    -1.31     2.36 1.00    48431    19357
-# racehispanic:same_race     1.37      0.47     0.49     2.35 1.00    32261    21930
-# raceother:same_race        0.25      0.75    -1.30     1.73 1.00    36608    22823
-# racewhite:same_race        0.12      0.04     0.05     0.18 1.00    18661    22630
