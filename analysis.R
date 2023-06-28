@@ -37,8 +37,20 @@ length(unique(d$country)) # 78 unique countries
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 # Boss First/Last name
-d$boss_first_name <- unlist(lapply(d$boss_ID, function(x){d$first_name[d$ID == x][1]}))
-d$boss_last_name <- unlist(lapply(d$boss_ID, function(x){d$last_name[d$ID == x][1]}))
+d$boss_first_name <- unlist(lapply(d$boss_ID, 
+                                   function(x){
+                                     if(x %in% d$ID){
+                                       d$first_name[d$ID == x][1]
+                                     }else{
+                                       str_extract(d$boss_full_name[d$boss_ID == x][1], "[:alpha:]+ ")
+                                     }}))
+d$boss_last_name <- unlist(lapply(d$boss_ID, 
+                                  function(x){
+                                    if(x %in% d$ID){
+                                      d$last_name[d$ID == x][1]
+                                    }else{
+                                      str_remove(d$boss_full_name[d$boss_ID == x][1], "[:alpha:]+ ")
+                                    }}))
 
 # Predicted Gender
   predicted_gender <- predict_gender(d$first_name[d$country == "United States (USA)"], probability = FALSE) %>% 
