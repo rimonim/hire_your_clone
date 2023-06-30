@@ -3,10 +3,9 @@
 
 library(dplyr)
 library(tibble)
-library(ggplot2)
 library(shiny)
 library(stringr)
-library(networkD3)
+# library(networkD3)
 
 is_common_name <- function(name){
   if(name %in% name_popularity$first_name){
@@ -18,40 +17,100 @@ is_common_name <- function(name){
 
 # Function takes information on employee and boss and outputs an example comparison 
 # with a different employee and the same boss (in html)
-generate_example_comparison <- function(boss_first_name, boss_common_name, boss_gender, boss_race, 
+generate_example_comparison <- function(boss_first_name, boss_common_name, boss_gender, boss_ethnicity, 
                                         same_first_name, both_uncommon_names, 
                                         both_male, boss_male, boss_female, both_female,
-                                        both_asian, both_black, both_hispanic, both_white, 
-                                        boss_white){
+                                        both_EastAsian, both_EastEuropean, both_Japanese, 
+                                        both_Indian, both_African, both_Muslim, 
+                                        both_WestEuropean, both_Jewish, both_Hispanic,
+                                        both_Italian, WE_Asian, WE_Indian,
+                                        WE_Muslim, WE_Hispanic, WE_Jewish){
   # User's odds
-  user_odds <- exp(mod_america_posterior_medians$b_same_first_name*same_first_name + mod_america_posterior_medians$b_both_uncommon_names*both_uncommon_names + mod_america_posterior_medians$b_both_male*both_male + mod_america_posterior_medians$b_boss_male*boss_male + mod_america_posterior_medians$b_boss_female*boss_female + mod_america_posterior_medians$b_both_female*both_female + mod_america_posterior_medians$b_both_asian*both_asian + mod_america_posterior_medians$b_both_black*both_black + mod_america_posterior_medians$b_both_hispanic*both_hispanic + mod_america_posterior_medians$b_both_white*both_white + mod_america_posterior_medians$b_boss_white*boss_white)
+  user_odds <- exp(median_params$b_same_first_name*same_first_name 
+                   + median_params$b_both_uncommon_names*both_uncommon_names 
+                   + median_params$b_both_male*both_male
+                   + median_params$b_boss_male*boss_male
+                   + median_params$b_boss_female*boss_female
+                   + median_params$b_both_female*both_female
+                   + median_params$b_both_EastAsian*both_EastAsian
+                   + median_params$b_both_EastEuropean*both_EastEuropean
+                   + median_params$b_both_Japanese*both_Japanese
+                   + median_params$b_both_Indian*both_Indian
+                   + median_params$b_both_African*both_African
+                   + median_params$b_both_Muslim*both_Muslim
+                   + median_params$b_both_WestEuropean*both_WestEuropean
+                   + median_params$b_both_Jewish*both_Jewish
+                   + median_params$b_both_Hispanic*both_Hispanic
+                   + median_params$b_both_Italian*both_Italian
+                   + median_params$b_WE_Asian*WE_Asian
+                   + median_params$b_WE_Indian*WE_Indian
+                   + median_params$b_WE_Muslim*WE_Muslim
+                   + median_params$b_WE_Hispanic*WE_Hispanic
+                   + median_params$b_WE_Jewish*WE_Jewish)
+  
+  # Fill in boss info 
+  boss <- data.frame(first_name = boss_first_name, 
+                     common_name = boss_common_name,
+                     gender = boss_gender, 
+                     ethnicity = boss_ethnicity) %>% 
+    left_join(ethnicity_avg_probs) %>% 
+    rename_with( ~ paste0("boss_", .x))
   
   # Pick a comparison employee, add boss info, 
   # calculate dyad properties, and join with pre-calculated odds
-  example_employee <- example_employees %>% slice_sample(n = 1) %>% 
-    add_column(boss_first_name = boss_first_name, 
-               boss_common_name = boss_common_name, 
-               boss_gender = boss_gender, 
-               boss_race = boss_race) %>% 
-    mutate(same_first_name = as.integer(first_name == boss_first_name),
-           both_uncommon_names = as.integer(boss_common_name == 0 & common_name == 0),
-           both_male = as.integer(boss_gender == 0 & gender == 0),
-           boss_male = as.integer(boss_gender == 0 & gender == 1),
-           boss_female = as.integer(boss_gender == 1 & gender == 0),
-           both_female = as.integer(boss_gender == 1 & gender == 1),
-           both_asian = as.integer(boss_race == "asian" & race == "asian"),
-           both_black = as.integer(boss_race == "black" & race == "black"),
-           both_hispanic = as.integer(boss_race == "hispanic" & race == "hispanic"),
-           both_white = as.integer(boss_race == "white" & race == "white"),
-           boss_white = as.integer(boss_race == "white" & race != "white")) %>% 
-    left_join(calculated_odds, multiple = "any")
+  example_employee <- average_employees %>% slice_sample(n = 1) %>% 
+    bind_cols(boss) %>% 
+    left_join(ethnicity_avg_probs) %>% 
+    mutate(ex_same_first_name = as.integer(first_name == boss_first_name),
+           ex_both_uncommon_names = as.integer(boss_common_name == 0 & common_name == 0),
+           ex_both_male = as.integer(boss_gender == 0 & gender == 0),
+           ex_boss_male = as.integer(boss_gender == 0 & gender == 1),
+           ex_boss_female = as.integer(boss_gender == 1 & gender == 0),
+           ex_both_female = as.integer(boss_gender == 1 & gender == 1),
+           ex_both_EastAsian = EastAsian*boss_EastAsian,
+           ex_both_EastEuropean = EastEuropean*boss_EastEuropean,
+           ex_both_Japanese = Japanese*boss_Japanese,
+           ex_both_Indian = Indian*boss_Indian,
+           ex_both_African = African*boss_African,
+           ex_both_Muslim = Muslim*boss_Muslim,
+           ex_both_WestEuropean = WestEuropean*boss_WestEuropean,
+           ex_both_Jewish = Jewish*boss_Jewish,
+           ex_both_Hispanic = Hispanic*boss_Hispanic,
+           ex_both_Italian = Italian*boss_Italian,
+           ex_WE_Asian = (EastAsian + Japanese)*boss_WestEuropean,
+           ex_WE_Indian = Indian*boss_WestEuropean,
+           ex_WE_Muslim = Muslim*boss_WestEuropean,
+           ex_WE_Hispanic = Hispanic*boss_WestEuropean,
+           ex_WE_Jewish = Jewish*boss_WestEuropean,
+           # Final calculation
+           odds = exp(median_params$b_same_first_name*ex_same_first_name 
+                      + median_params$b_both_uncommon_names*ex_both_uncommon_names 
+                      + median_params$b_both_male*ex_both_male
+                      + median_params$b_boss_male*ex_boss_male
+                      + median_params$b_boss_female*ex_boss_female
+                      + median_params$b_both_female*ex_both_female
+                      + median_params$b_both_EastAsian*ex_both_EastAsian
+                      + median_params$b_both_EastEuropean*ex_both_EastEuropean
+                      + median_params$b_both_Japanese*ex_both_Japanese
+                      + median_params$b_both_Indian*ex_both_Indian
+                      + median_params$b_both_African*ex_both_African
+                      + median_params$b_both_Muslim*ex_both_Muslim
+                      + median_params$b_both_WestEuropean*ex_both_WestEuropean
+                      + median_params$b_both_Jewish*ex_both_Jewish
+                      + median_params$b_both_Hispanic*ex_both_Hispanic
+                      + median_params$b_both_Italian*ex_both_Italian
+                      + median_params$b_WE_Asian*ex_WE_Asian
+                      + median_params$b_WE_Indian*ex_WE_Indian
+                      + median_params$b_WE_Muslim*ex_WE_Muslim
+                      + median_params$b_WE_Hispanic*ex_WE_Hispanic
+                      + median_params$b_WE_Jewish*ex_WE_Jewish))
   
   return( paste0(
     "Your odds of working for this boss are ",
     as.character(round(abs(100*(user_odds/example_employee$odds - 1)))), "% ",
     if(user_odds >= example_employee$odds){"more "}else{"less "},
-    "than those of ", c("an ", "a ")[(example_employee$race != "asian") + 1],
-    str_to_title(example_employee$race), c(" man ", " woman ")[example_employee$gender + 1], "named ",
+    "than those of ", c("an ", "a ")[(!example_employee$ethnicity %in% c("African", "Indian", "Italian")) + 1],
+    str_to_title(example_employee$ethnicity), c(" man ", " woman ")[example_employee$gender + 1], "named ",
     example_employee$first_name, "."
   ) )
 }
@@ -60,8 +119,11 @@ generate_example_comparison <- function(boss_first_name, boss_common_name, boss_
 # Data
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-# save(mod_america_posterior_medians, d_america_allvars, name_popularity,
-#      example_employees, ethnicity_avg_probs, ethnicity_nodes, ethnicity_links, file = "data/show.RData")
+# save(median_params, name_popularity,
+#      average_employees, ethnicity_nodes, ethnicity_avg_probs,
+#      # d_america_allvars, ethnicity_links,
+#      file = "data/show.RData")
+
 load("data/show.RData")
 
 # write.csv(
@@ -117,8 +179,8 @@ ui <- navbarPage("Hire Your Clone",
       column(5, offset = 1,
         br(),
         htmlOutput("gender_number"), h5(textOutput("prediction_gender"), br()),
-        h3(htmlOutput("race_number")),
-        h5(textOutput("prediction_race"), br()),
+        h3(htmlOutput("ethnicity_number")),
+        h5(textOutput("prediction_ethnicity"), br()),
         h3(htmlOutput("both_uncommon_names_number")),
         h5(textOutput("prediction_both_uncommon_names"), br()),
         h3(htmlOutput("same_name_number")),
@@ -126,18 +188,18 @@ ui <- navbarPage("Hire Your Clone",
       ),
       column(5, 
        br(), br(), br(),
-       # h4(htmlOutput("example_comparison1", style="color:grey;"), br(), br(), br()),
-       # h4(htmlOutput("example_comparison2", style="color:grey;"))
+       h4(htmlOutput("example_comparison1", style="color:grey;"), br(), br(), br()),
+       h4(htmlOutput("example_comparison2", style="color:grey;"))
       )
     )
   ),
   
-  tabPanel("Explore the Data", icon = icon("chart-line"),
-           fluidRow(
-             column(1, HTML('<p style="margin-top:290px;"><b>Employees</b></p>')),
-             column(10, sankeyNetworkOutput("sankey_ethnicity", height = "600px")),
-             column(1, HTML('<p style="margin-top:290px;"><b>Bosses</b></p>'))
-           )),
+  # tabPanel("Explore the Data", icon = icon("chart-line"),
+  #          fluidRow(
+  #            column(1, HTML('<p style="margin-top:290px;"><b>Employees</b></p>')),
+  #            column(10, sankeyNetworkOutput("sankey_ethnicity", height = "600px")),
+  #            column(1, HTML('<p style="margin-top:290px;"><b>Bosses</b></p>'))
+  #          )),
   
   tabPanel("Learn More", icon = icon("circle-info"),
            fluidRow(
@@ -151,20 +213,6 @@ ui <- navbarPage("Hire Your Clone",
 # SERVER
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-## Inputs:
-# actionButton: update_output
-# first_name
-# boss_first_name
-# gender
-# boss_gender
-# race
-# boss_race
-
-## Outputs:
-# prediction_gender
-# prediction_race
-# prediction_same_name
-
 server <- function(input, output) {
 
   # Reactives for Home Screen
@@ -172,27 +220,27 @@ server <- function(input, output) {
   
   r <- reactiveValues(same_first_name = 0,
                       both_male = 0,
-                      both_uncommon_names = mod_america_posterior_medians$b_both_uncommon_names,
+                      both_uncommon_names = median_params$b_both_uncommon_names,
                       boss_male = 0,
-                      boss_female = mod_america_posterior_medians$b_boss_female,
+                      boss_female = median_params$b_boss_female,
                       both_female = 0,
                       boss_ethnicity = "Western European or African American",
                       ethnicity = "Western European or African American",
-                      both_EastAsian = mod_america_posterior_medians$b_both_EastAsian * ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      both_EastEuropean = mod_america_posterior_medians$b_both_EastEuropean * ethnicity_avg_probs$EastEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$EastEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      both_Japanese = mod_america_posterior_medians$b_both_Japanese * ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      both_Indian = mod_america_posterior_medians$b_both_Indian * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      both_African = mod_america_posterior_medians$b_both_African * ethnicity_avg_probs$African[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$African[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      both_Muslim = mod_america_posterior_medians$b_both_Muslim * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      both_WestEuropean = mod_america_posterior_medians$b_both_WestEuropean * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      both_Jewish = mod_america_posterior_medians$b_both_Jewish * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      both_Hispanic = mod_america_posterior_medians$b_both_Hispanic * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      both_Italian = mod_america_posterior_medians$b_both_Italian * ethnicity_avg_probs$Italian[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Italian[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      WE_Asian = mod_america_posterior_medians$b_WE_Asian * (ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == "Western European or African American"] + ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == "Western European or African American"]) * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      WE_Indian = mod_america_posterior_medians$b_WE_Indian * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      WE_Muslim = mod_america_posterior_medians$b_WE_Muslim * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      WE_Hispanic = mod_america_posterior_medians$b_WE_Hispanic * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
-                      WE_Jewish = mod_america_posterior_medians$b_WE_Jewish * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_EastAsian = median_params$b_both_EastAsian * ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_EastEuropean = median_params$b_both_EastEuropean * ethnicity_avg_probs$EastEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$EastEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_Japanese = median_params$b_both_Japanese * ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_Indian = median_params$b_both_Indian * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_African = median_params$b_both_African * ethnicity_avg_probs$African[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$African[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_Muslim = median_params$b_both_Muslim * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_WestEuropean = median_params$b_both_WestEuropean * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_Jewish = median_params$b_both_Jewish * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_Hispanic = median_params$b_both_Hispanic * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      both_Italian = median_params$b_both_Italian * ethnicity_avg_probs$Italian[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$Italian[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      WE_Asian = median_params$b_WE_Asian * (ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == "Western European or African American"] + ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == "Western European or African American"]) * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      WE_Indian = median_params$b_WE_Indian * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      WE_Muslim = median_params$b_WE_Muslim * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      WE_Hispanic = median_params$b_WE_Hispanic * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
+                      WE_Jewish = median_params$b_WE_Jewish * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == "Western European or African American"] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == "Western European or African American"],
                       boss_first_name = "Cruella",
                       boss_gender = 1,
                       boss_EastAsian = ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == "Western European or African American"],
@@ -211,50 +259,50 @@ server <- function(input, output) {
     r$boss_gender <- input$boss_gender
     r$boss_ethnicity <- input$boss_ethnicity
     r$ethnicity <- input$ethnicity
-    r$same_first_name <- mod_america_posterior_medians$b_same_first_name*(input$first_name == input$boss_first_name)
-    r$both_uncommon_names <- mod_america_posterior_medians$b_both_uncommon_names*((is_common_name(input$first_name) == 0) & (is_common_name(input$boss_first_name) == 0))
+    r$same_first_name <- median_params$b_same_first_name*(input$first_name == input$boss_first_name)
+    r$both_uncommon_names <- median_params$b_both_uncommon_names*((is_common_name(input$first_name) == 0) & (is_common_name(input$boss_first_name) == 0))
     if(input$gender == 2){
       r$both_male <- 0
       r$boss_male <- 0
       r$boss_female <- 0
       r$both_female <- 0
     }else if(input$gender == 0 & input$boss_gender == 0){
-      r$both_male <- mod_america_posterior_medians$b_both_male
+      r$both_male <- median_params$b_both_male
       r$boss_male <- 0
       r$boss_female <- 0
       r$both_female <- 0
     }else if(input$gender == 1 & input$boss_gender == 0){
       r$both_male <- 0
-      r$boss_male <- mod_america_posterior_medians$b_boss_male
+      r$boss_male <- median_params$b_boss_male
       r$boss_female <- 0
       r$both_female <- 0
     }else if(input$gender == 0 & input$boss_gender == 1){
       r$both_male <- 0
       r$boss_male <- 0
-      r$boss_female <- mod_america_posterior_medians$b_boss_female
+      r$boss_female <- median_params$b_boss_female
       r$both_female <- 0
     }else if(input$gender == 1 & input$boss_gender == 1){
       r$both_male <- 0
       r$boss_male <- 0
       r$boss_female <- 0
-      r$both_female <- mod_america_posterior_medians$b_both_female
+      r$both_female <- median_params$b_both_female
     }
     
-    r$both_EastAsian <- mod_america_posterior_medians$b_both_EastAsian * ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$both_EastEuropean <- mod_america_posterior_medians$b_both_EastEuropean * ethnicity_avg_probs$EastEuropean[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$EastEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$both_Japanese <- mod_america_posterior_medians$b_both_Japanese * ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$both_Indian <- mod_america_posterior_medians$b_both_Indian * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$both_African <- mod_america_posterior_medians$b_both_African * ethnicity_avg_probs$African[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$African[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$both_Muslim <- mod_america_posterior_medians$b_both_Muslim * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$both_WestEuropean <- mod_america_posterior_medians$b_both_WestEuropean * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$both_Jewish <- mod_america_posterior_medians$b_both_Jewish * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$both_Hispanic <- mod_america_posterior_medians$b_both_Hispanic * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$both_Italian <- mod_america_posterior_medians$b_both_Italian * ethnicity_avg_probs$Italian[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Italian[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$WE_Asian <- mod_america_posterior_medians$b_WE_Asian * (ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == input$ethnicity] + ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == input$ethnicity]) * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$WE_Indian <- mod_america_posterior_medians$b_WE_Indian * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$WE_Muslim <- mod_america_posterior_medians$b_WE_Muslim * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$WE_Hispanic <- mod_america_posterior_medians$b_WE_Hispanic * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
-    r$WE_Jewish <- mod_america_posterior_medians$b_WE_Jewish * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_EastAsian <- median_params$b_both_EastAsian * ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_EastEuropean <- median_params$b_both_EastEuropean * ethnicity_avg_probs$EastEuropean[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$EastEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_Japanese <- median_params$b_both_Japanese * ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_Indian <- median_params$b_both_Indian * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_African <- median_params$b_both_African * ethnicity_avg_probs$African[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$African[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_Muslim <- median_params$b_both_Muslim * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_WestEuropean <- median_params$b_both_WestEuropean * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_Jewish <- median_params$b_both_Jewish * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_Hispanic <- median_params$b_both_Hispanic * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$both_Italian <- median_params$b_both_Italian * ethnicity_avg_probs$Italian[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$Italian[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$WE_Asian <- median_params$b_WE_Asian * (ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == input$ethnicity] + ethnicity_avg_probs$Japanese[ethnicity_avg_probs$ethnicity == input$ethnicity]) * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$WE_Indian <- median_params$b_WE_Indian * ethnicity_avg_probs$Indian[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$WE_Muslim <- median_params$b_WE_Muslim * ethnicity_avg_probs$Muslim[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$WE_Hispanic <- median_params$b_WE_Hispanic * ethnicity_avg_probs$Hispanic[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
+    r$WE_Jewish <- median_params$b_WE_Jewish * ethnicity_avg_probs$Jewish[ethnicity_avg_probs$ethnicity == input$ethnicity] * ethnicity_avg_probs$WestEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
     
     r$boss_EastAsian <- ethnicity_avg_probs$EastAsian[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
     r$boss_EastEuropean <- ethnicity_avg_probs$EastEuropean[ethnicity_avg_probs$ethnicity == input$boss_ethnicity]
@@ -310,25 +358,25 @@ server <- function(input, output) {
     if(aggregate_gender == 0){"The impact of your gender cannot be inferred from this dataset."}else{text}
     })
   
-  # Race
-  output$race_number <- renderText({
+  # ethnicity
+  output$ethnicity_number <- renderText({
     if(r$ethnicity == "Other" | r$boss_ethnicity == "Other" | (r$ethnicity != r$boss_ethnicity & r$boss_ethnicity != "Western European or African American")){
       
     }else{
-      aggregate_race <- r$both_EastAsian + r$both_EastEuropean + r$both_Japanese + r$both_Indian + r$both_African + r$both_Muslim + r$both_WestEuropean + r$both_Jewish + r$both_Hispanic + r$both_Italian + r$WE_Asian + r$WE_Indian + r$WE_Muslim + r$WE_Hispanic + r$WE_Jewish
+      aggregate_ethnicity <- r$both_EastAsian + r$both_EastEuropean + r$both_Japanese + r$both_Indian + r$both_African + r$both_Muslim + r$both_WestEuropean + r$both_Jewish + r$both_Hispanic + r$both_Italian + r$WE_Asian + r$WE_Indian + r$WE_Muslim + r$WE_Hispanic + r$WE_Jewish
       paste0('<b> <span style=\"font-size:', 
-             as.character(30 + 100*abs(exp(aggregate_race) - 1)), 'px;',
-             'color:', c("red", "green")[1L + (aggregate_race > 0)], 
-             '\"> ', as.character(round(100*(exp(aggregate_race) - 1))), "%",
+             as.character(30 + 100*abs(exp(aggregate_ethnicity) - 1)), 'px;',
+             'color:', c("red", "green")[1L + (aggregate_ethnicity > 0)], 
+             '\"> ', as.character(round(100*(exp(aggregate_ethnicity) - 1))), "%",
              '</span> </b>')
     }
   })
    
-  output$prediction_race <- renderText({
+  output$prediction_ethnicity <- renderText({
     if(r$ethnicity == "Other" | r$boss_ethnicity == "Other" | (r$ethnicity != r$boss_ethnicity & r$boss_ethnicity != "Western European or African American")){
       text <- "The impact of your ethnicity cannot be inferred from this dataset."
     }else{
-      aggregate_race <- r$both_EastAsian + r$both_EastEuropean + r$both_Japanese + r$both_Indian + r$both_African + r$both_Muslim + r$both_WestEuropean + r$both_Jewish + r$both_Hispanic + r$both_Italian + r$WE_Asian + r$WE_Indian + r$WE_Muslim + r$WE_Hispanic + r$WE_Jewish
+      aggregate_ethnicity <- r$both_EastAsian + r$both_EastEuropean + r$both_Japanese + r$both_Indian + r$both_African + r$both_Muslim + r$both_WestEuropean + r$both_Jewish + r$both_Hispanic + r$both_Italian + r$WE_Asian + r$WE_Indian + r$WE_Muslim + r$WE_Hispanic + r$WE_Jewish
       text <- c("The fact that ",
         c("both you and your boss are Chinese or Korean ",
           "both you and your boss are Eastern European ",
@@ -372,7 +420,7 @@ server <- function(input, output) {
                          r$both_female))
           )
         ],
-        as.character(round(exp(aggregate_race), 2)),
+        as.character(round(exp(aggregate_ethnicity), 2)),
         " times what it would be otherwise."
         )
     }
@@ -428,37 +476,43 @@ server <- function(input, output) {
     })
   
   # EXAMPLE COMPARISONS
-  # output$example_comparison1 <- renderText({
-  #   generate_example_comparison(r$boss_first_name, is_common_name(r$boss_first_name), r$boss_gender, r$boss_race, 
-  #                               r$same_first_name, r$both_uncommon_names, 
-  #                               r$both_male, r$boss_male, r$boss_female, r$both_female,
-  #                               r$both_asian, r$both_black, r$both_hispanic, r$both_white, 
-  #                               r$boss_white)
-  # })
-  # output$example_comparison2 <- renderText({
-  #   generate_example_comparison(r$boss_first_name, is_common_name(r$boss_first_name), r$boss_gender, r$boss_race, 
-  #                               r$same_first_name, r$both_uncommon_names, 
-  #                               r$both_male, r$boss_male, r$boss_female, r$both_female,
-  #                               r$both_asian, r$both_black, r$both_hispanic, r$both_white, 
-  #                               r$boss_white)
-  # })
+  output$example_comparison1 <- renderText({
+    generate_example_comparison(r$boss_first_name, is_common_name(r$boss_first_name), r$boss_gender, r$boss_ethnicity,
+                                r$same_first_name, r$both_uncommon_names,
+                                r$both_male, r$boss_male, r$boss_female, r$both_female,
+                                r$both_EastAsian, r$both_EastEuropean, r$both_Japanese, 
+                                r$both_Indian, r$both_African, r$both_Muslim, 
+                                r$both_WestEuropean, r$both_Jewish,r$both_Hispanic,
+                                r$both_Italian, r$WE_Asian, r$WE_Indian,
+                                r$WE_Muslim, r$WE_Hispanic, r$WE_Jewish)
+  })
+  output$example_comparison2 <- renderText({
+    generate_example_comparison(r$boss_first_name, is_common_name(r$boss_first_name), r$boss_gender, r$boss_ethnicity,
+                                r$same_first_name, r$both_uncommon_names,
+                                r$both_male, r$boss_male, r$boss_female, r$both_female,
+                                r$both_EastAsian, r$both_EastEuropean, r$both_Japanese, 
+                                r$both_Indian, r$both_African, r$both_Muslim, 
+                                r$both_WestEuropean, r$both_Jewish,r$both_Hispanic,
+                                r$both_Italian, r$WE_Asian, r$WE_Indian,
+                                r$WE_Muslim, r$WE_Hispanic, r$WE_Jewish)
+  })
     
-    output$sankey_gender <- renderSankeyNetwork({
-      sankeyNetwork(Links = gender_links, Nodes = gender_nodes,
-                    Source = "gender", Target = "boss_gender",
-                    Value = "n", NodeID = "gender", colourScale = 'd3.scaleOrdinal() .range(["#9B3634", "#96C9DC"])',
-                    units = "occurrences", fontFamily = "arial",
-                    sinksRight = TRUE, nodeWidth = 40, fontSize = 14, nodePadding = 10)
-    })
-    output$sankey_ethnicity <- renderSankeyNetwork({
-      color_scale <- 'd3.scaleOrdinal() .range(["#BD3E3E", "#9B3634", "#61A0AF", "#BE8A60", "#C5D86D",
-                      "#61AD55", "#56AE96", "#5E8463", "#3F6246", "#96C9DC"])'
-      sankeyNetwork(Links = ethnicity_links, Nodes = ethnicity_nodes,
-                    Source = "ethnicity", Target = "boss_ethnicity",
-                    Value = "n", NodeID = "ethnicity", colourScale = color_scale,
-                    units = "occurrences", fontFamily = "arial",
-                    sinksRight=TRUE, nodeWidth=40, fontSize=14, nodePadding=10)
-    })
+    # output$sankey_gender <- renderSankeyNetwork({
+    #   sankeyNetwork(Links = gender_links, Nodes = gender_nodes,
+    #                 Source = "gender", Target = "boss_gender",
+    #                 Value = "n", NodeID = "gender", colourScale = 'd3.scaleOrdinal() .range(["#9B3634", "#96C9DC"])',
+    #                 units = "occurrences", fontFamily = "arial",
+    #                 sinksRight = TRUE, nodeWidth = 40, fontSize = 14, nodePadding = 10)
+    # })
+    # output$sankey_ethnicity <- renderSankeyNetwork({
+    #   color_scale <- 'd3.scaleOrdinal() .range(["#BD3E3E", "#9B3634", "#61A0AF", "#BE8A60", "#C5D86D",
+    #                   "#61AD55", "#56AE96", "#5E8463", "#3F6246", "#96C9DC"])'
+    #   sankeyNetwork(Links = ethnicity_links, Nodes = ethnicity_nodes,
+    #                 Source = "ethnicity", Target = "boss_ethnicity",
+    #                 Value = "n", NodeID = "ethnicity", colourScale = color_scale,
+    #                 units = "occurrences", fontFamily = "arial",
+    #                 sinksRight=TRUE, nodeWidth=40, fontSize=14, nodePadding=10)
+    # })
 }
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#

@@ -280,11 +280,16 @@ d_america_allvars <- d_america %>%
   replace_na(list(common_name = 0, boss_common_name = 0)) %>%
   mutate(both_uncommon_names = as.integer(boss_common_name == 0 & common_name == 0))
 
-example_employees <- d_america_allvars %>% 
+# Mostly imaginary employees for all combinations of vars, each average for their race.
+average_employees <- d_america_allvars %>% 
   drop_na() %>% 
-  select(first_name, common_name, gender, race) %>% 
-  group_by(common_name, gender, race) %>% 
-  reframe(across(everything(), ~head(.x, 10)))
+  select(first_name, common_name, gender, ethnicity) %>% 
+  distinct(first_name, .keep_all = TRUE) %>% 
+  group_by(common_name, gender, ethnicity) %>% 
+  reframe(across(everything(), ~head(.x, 5))) %>% 
+  # join average race values
+  left_join(ethnicity_avg_probs)
+  
 
 ## Sankey Diagrams
 library(networkD3)
