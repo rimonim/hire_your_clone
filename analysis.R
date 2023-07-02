@@ -135,6 +135,8 @@ d_america_train <- d_america %>%
 
 # Permuted Boss-Employee Relationships
 d_america_false <- d_america %>% 
+  # sample only drawn companies
+  filter(company_ID %in% companies_draw) %>% 
   # all possible employee-boss combinations
   tidyr::expand(tidyr::nesting(ID, first_name), tidyr::nesting(boss_ID, boss_first_name)) %>% 
   # rejoin true combinations
@@ -143,8 +145,6 @@ d_america_false <- d_america %>%
   filter(is.na(company_ID)) %>% select(-company_ID) %>% 
   # rejoin interesting vars
   left_join(d %>% group_by(boss_ID) %>% reframe(company_ID, company, level), by = "boss_ID", relationship = "many-to-many") %>% 
-  # sample only drawn companies
-  filter(company_ID %in% companies_draw) %>% 
   # sample only as many rows as are in real data
   slice_sample(n = nrow(d_america_train)) %>% 
   # code as false
@@ -165,11 +165,11 @@ d_america_train <- d_america_train %>%
          boss_female = as.integer(boss_gender == 1 & gender == 0),
          both_female = as.integer(boss_gender == 1 & gender == 1))
 
-# Fold in Race
+# Fold in Ethnicity
 d_america_train <- d_america_train %>% 
   left_join(names_ethnicity, multiple = "any") %>% 
   left_join(boss_names_ethnicity, multiple = "any") %>% 
-  # Same Race as Boss
+  # Same Ethnicity as Boss
   mutate(both_EastAsian = EastAsian*boss_EastAsian,
          both_EastEuropean = EastEuropean*boss_EastEuropean,
          both_Japanese = Japanese*boss_Japanese,
