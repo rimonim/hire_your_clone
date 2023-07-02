@@ -53,54 +53,54 @@ d$boss_last_name <- unlist(lapply(d$boss_ID,
                                     }}))
 
 # Predicted Gender
-  predicted_gender <- predict_gender(d$first_name[d$country == "United States (USA)"], probability = FALSE) %>% 
-    select(name, likely_gender) %>% 
-    rename(first_name = name, gender = likely_gender) %>% 
-    mutate(gender = as.integer(gender == "female"))
-  boss_predicted_gender <- predicted_gender %>% 
-    rename(boss_first_name = first_name, 
-           boss_gender = gender)
+predicted_gender <- predict_gender(d$first_name[d$country == "United States (USA)"], probability = FALSE) %>% 
+  select(name, likely_gender) %>% 
+  rename(first_name = name, gender = likely_gender) %>% 
+  mutate(gender = as.integer(gender == "female"))
+boss_predicted_gender <- predicted_gender %>% 
+  rename(boss_first_name = first_name, 
+         boss_gender = gender)
 # Predicted Ethnicity (based on first and last name - https://ethnicolr.readthedocs.io/ethnicolr.html#general-api)
-  names_ethnicity <- read_csv('data/names_ethnicity.csv')
-  names_ethnicity <- names_ethnicity %>% 
-    select(firstName, lastName, race,
-           `Asian,GreaterEastAsian,EastAsian_mean`, `Asian,GreaterEastAsian,Japanese_mean`,
-           `Asian,IndianSubContinent_mean`, `GreaterAfrican,Africans_mean`, `GreaterAfrican,Muslim_mean`,
-           `GreaterEuropean,British_mean`, `GreaterEuropean,EastEuropean_mean`, `GreaterEuropean,Jewish_mean`, 
-           `GreaterEuropean,WestEuropean,French_mean`, `GreaterEuropean,WestEuropean,Germanic_mean`, 
-           `GreaterEuropean,WestEuropean,Hispanic_mean`, `GreaterEuropean,WestEuropean,Italian_mean`, 
-           `GreaterEuropean,WestEuropean,Nordic_mean`) %>% 
-    rename(first_name = firstName, last_name = lastName, 
-           EastAsian = `Asian,GreaterEastAsian,EastAsian_mean`, Japanese = `Asian,GreaterEastAsian,Japanese_mean`,
-           Indian = `Asian,IndianSubContinent_mean`, African = `GreaterAfrican,Africans_mean`, Muslim = `GreaterAfrican,Muslim_mean`,
-           British = `GreaterEuropean,British_mean`, EastEuropean = `GreaterEuropean,EastEuropean_mean`, Jewish = `GreaterEuropean,Jewish_mean`, 
-           French = `GreaterEuropean,WestEuropean,French_mean`, German = `GreaterEuropean,WestEuropean,Germanic_mean`, 
-           Hispanic = `GreaterEuropean,WestEuropean,Hispanic_mean`, Italian = `GreaterEuropean,WestEuropean,Italian_mean`, 
-           Nordic = `GreaterEuropean,WestEuropean,Nordic_mean`) %>% 
-    mutate(WestEuropean = British + French + German + Nordic,
-           race = str_remove_all(race, ".+,"),
-           ethnicity = case_when(race %in% c("British", "French", "Germanic", "Nordic") ~ "Western European or African American",
-                                 race == "EastEuropean" ~ "Eastern European",
-                                 race == "IndianSubContinent" ~ "Indian",
-                                 race == "EastAsian" ~ "Chinese or Korean",
-                                 race == "Africans" ~ "African",
-                                 .default = race)) %>% 
-    select(-c(British,French,German,Nordic, race))
-  
-  boss_names_ethnicity <- names_ethnicity %>% 
-    rename(boss_ethnicity = ethnicity,
-           boss_first_name = first_name, boss_last_name = last_name, 
-           boss_WestEuropean = WestEuropean, boss_EastAsian = EastAsian, boss_Japanese = Japanese,
-           boss_Indian = Indian, boss_African = African, boss_Muslim = Muslim,
-           boss_EastEuropean = EastEuropean, boss_Jewish = Jewish, 
-           boss_Hispanic = Hispanic, boss_Italian = Italian)
-  
-  ethnicity_avg_probs <- names_ethnicity %>% 
-    group_by(ethnicity) %>% 
-    summarise(across(EastAsian:WestEuropean, mean)) %>% 
-    drop_na() %>% 
-    ungroup()
-  #~~~~
+names_ethnicity <- read_csv('data/names_ethnicity.csv')
+names_ethnicity <- names_ethnicity %>% 
+  select(firstName, lastName, race,
+         `Asian,GreaterEastAsian,EastAsian_mean`, `Asian,GreaterEastAsian,Japanese_mean`,
+         `Asian,IndianSubContinent_mean`, `GreaterAfrican,Africans_mean`, `GreaterAfrican,Muslim_mean`,
+         `GreaterEuropean,British_mean`, `GreaterEuropean,EastEuropean_mean`, `GreaterEuropean,Jewish_mean`, 
+         `GreaterEuropean,WestEuropean,French_mean`, `GreaterEuropean,WestEuropean,Germanic_mean`, 
+         `GreaterEuropean,WestEuropean,Hispanic_mean`, `GreaterEuropean,WestEuropean,Italian_mean`, 
+         `GreaterEuropean,WestEuropean,Nordic_mean`) %>% 
+  rename(first_name = firstName, last_name = lastName, 
+         EastAsian = `Asian,GreaterEastAsian,EastAsian_mean`, Japanese = `Asian,GreaterEastAsian,Japanese_mean`,
+         Indian = `Asian,IndianSubContinent_mean`, African = `GreaterAfrican,Africans_mean`, Muslim = `GreaterAfrican,Muslim_mean`,
+         British = `GreaterEuropean,British_mean`, EastEuropean = `GreaterEuropean,EastEuropean_mean`, Jewish = `GreaterEuropean,Jewish_mean`, 
+         French = `GreaterEuropean,WestEuropean,French_mean`, German = `GreaterEuropean,WestEuropean,Germanic_mean`, 
+         Hispanic = `GreaterEuropean,WestEuropean,Hispanic_mean`, Italian = `GreaterEuropean,WestEuropean,Italian_mean`, 
+         Nordic = `GreaterEuropean,WestEuropean,Nordic_mean`) %>% 
+  mutate(WestEuropean = British + French + German + Nordic,
+         race = str_remove_all(race, ".+,"),
+         ethnicity = case_when(race %in% c("British", "French", "Germanic", "Nordic") ~ "Western European or African American",
+                               race == "EastEuropean" ~ "Eastern European",
+                               race == "IndianSubContinent" ~ "Indian",
+                               race == "EastAsian" ~ "Chinese or Korean",
+                               race == "Africans" ~ "African",
+                               .default = race)) %>% 
+  select(-c(British,French,German,Nordic, race))
+
+boss_names_ethnicity <- names_ethnicity %>% 
+  rename(boss_ethnicity = ethnicity,
+         boss_first_name = first_name, boss_last_name = last_name, 
+         boss_WestEuropean = WestEuropean, boss_EastAsian = EastAsian, boss_Japanese = Japanese,
+         boss_Indian = Indian, boss_African = African, boss_Muslim = Muslim,
+         boss_EastEuropean = EastEuropean, boss_Jewish = Jewish, 
+         boss_Hispanic = Hispanic, boss_Italian = Italian)
+
+ethnicity_avg_probs <- names_ethnicity %>% 
+  group_by(ethnicity) %>% 
+  summarise(across(EastAsian:WestEuropean, mean)) %>% 
+  drop_na() %>% 
+  ungroup()
+#~~~~
 # Name Popularity (binary)
 name_popularity <- tidytuesdayR::tt_load(2022, week = 12)$babynames
 name_popularity <- name_popularity %>%
@@ -120,7 +120,7 @@ d_america <- d %>%
          company_ID, company, level) %>% 
   # remove top level (bosses not employees)
   filter(!is.na(boss_ID))
-  
+
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # Balanced Dataset for Modeling
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -204,20 +204,20 @@ d_america_train <- d_america_train %>%
 # both_EastAsian + both_Japanese + both_Indian + both_African + both_Muslim + both_WestEuropean + both_Jewish + both_Hispanic + both_Italian +
 # WE_Asian + WE_Indian + WE_Muslim + WE_Hispanic + WE_Jewish
 mod_america_bayes10 <- brm(real ~ 0 + same_first_name + both_uncommon_names + both_male + boss_male + boss_female + both_female + both_EastAsian + both_EastEuropean + both_Japanese + both_Indian + both_African + both_Muslim + both_WestEuropean + both_Jewish + both_Hispanic + both_Italian + WE_Asian + WE_Indian + WE_Muslim + WE_Hispanic + WE_Jewish + (0 + same_first_name | boss_ID) + (0 + same_first_name + both_uncommon_names + both_male + boss_male + boss_female + both_female + both_EastAsian + both_EastEuropean + both_Japanese + both_Indian + both_African + both_Muslim + both_WestEuropean + both_Jewish + both_Hispanic + both_Italian + WE_Asian + WE_Indian + WE_Muslim + WE_Hispanic + WE_Jewish | company_ID),
-                         data = d_america_train,
-                         family = bernoulli(),
-                         prior = c(
-                           prior(normal(0, 1), class = "b"),
-                           prior(student_t(4, 0, 1), class = "sd")
-                         ),
-                         iter = 8000,
-                         warmup = 2000,
-                         cores = 4)
+                           data = d_america_train,
+                           family = bernoulli(),
+                           prior = c(
+                             prior(normal(0, 1), class = "b"),
+                             prior(student_t(4, 0, 1), class = "sd")
+                           ),
+                           iter = 8000,
+                           warmup = 2000,
+                           cores = 4)
 
 save(mod_america_bayes1, mod_america_bayes2, mod_america_bayes3, mod_america_bayes4, mod_america_bayes5, mod_america_bayes6, mod_america_bayes7, mod_america_bayes8, mod_america_bayes9, mod_america_bayes10, file = "data/results.RData")
 
 # Combine models trained on resampled false cases
-  # First 21 vars for fixed effects only. First 253 for sd and cor.
+# First 21 vars for fixed effects only. First 253 for sd and cor.
 full_vars <- head(variables(mod_america_bayes1), 21)
 
 mod_america_posterior_combined <- bind_rows( lapply( c(
@@ -231,7 +231,7 @@ mod_america_posterior_combined <- bind_rows( lapply( c(
   as_draws(mod_america_bayes8, variable = full_vars),
   as_draws(mod_america_bayes9, variable = full_vars),
   as_draws(mod_america_bayes10, variable = full_vars)
-  ), as_tibble ) )
+), as_tibble ) )
 
 mod_america_posterior_medians <- mod_america_posterior_combined %>% 
   summarise(across(everything(), ~ median(.x, na.rm = TRUE))) %>% as.list()
@@ -241,11 +241,32 @@ mod_america_posterior_medians <- mod_america_posterior_combined %>%
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 # Posterior Distributions
+library(ggdist)
+
+# Posterior Distributions
 mod_america_posterior_combined %>% 
-  ggplot(aes(b_boss_white)) +
-    geom_density(fill = "skyblue") +
-    geom_vline(aes(xintercept = median(b_boss_white)), color = "red") +
-    theme_minimal()
+  select(b_same_first_name:b_both_female) %>% 
+  pivot_longer(everything(), names_to = "param", names_prefix = "b_", values_to = "draw") %>% 
+  ggplot() +
+  stat_halfeye(aes(draw, param), fill = "skyblue", color = "blue4") +
+  coord_cartesian(xlim = c(-1.5, 1.5)) +
+  theme_bw() +
+  labs(x = "Posterior Parameter Estimate", y = "")
+
+ggsave("~/Projects/rimonim.github.io/blog/hire_your_clone/posteriors1.png",
+       width = 5, height = 6)
+
+mod_america_posterior_combined %>% 
+  select(b_both_EastAsian:b_WE_Jewish) %>% 
+  pivot_longer(everything(), names_to = "param", names_prefix = "b_", values_to = "draw") %>% 
+  ggplot() +
+  stat_halfeye(aes(draw, param), fill = "skyblue", color = "blue4") +
+  coord_cartesian(xlim = c(-1.5, 1.5)) +
+  theme_bw() +
+  labs(x = "Posterior Parameter Estimate", y = "")
+
+ggsave("~/Projects/rimonim.github.io/blog/hire_your_clone/posteriors2.png",
+       width = 5, height = 6)
 
 d_america_allvars <- d_america %>%
   mutate(same_first_name = as.integer(first_name == boss_first_name)) %>%
@@ -289,62 +310,8 @@ average_employees <- d_america_allvars %>%
   reframe(across(everything(), ~head(.x, 5))) %>% 
   # join average race values
   left_join(ethnicity_avg_probs)
-  
-
-## Sankey Diagrams
-library(networkD3)
-
-ethnicity_nodes <- data.frame(ethnicity = c(unique(d_america_allvars$ethnicity), paste0(na.omit(unique(d_america_allvars$boss_ethnicity)), " ")))
-
-ethnicity_links <- d_america_allvars %>% 
-  filter(!is.na(ethnicity),
-         !is.na(boss_ethnicity)) %>% 
-  group_by(ethnicity, boss_ethnicity) %>% 
-  summarise(n = n()) %>% 
-  ungroup() %>% 
-  mutate(boss_ethnicity = paste0(boss_ethnicity, " "),
-         across(ethnicity:boss_ethnicity, ~match(.x, pull(ethnicity_nodes, ethnicity))-1))
-
-color_scale <- 'd3.scaleOrdinal() .range(["#BD3E3E", "#9B3634", "#61A0AF", 
-                 "#BE8A60", "#C5D86D",
-                 "#61AD55", "#56AE96",
-                 "#5E8463", "#3F6246",
-                 "#96C9DC"])'
-sankeyNetwork(Links = ethnicity_links, Nodes = ethnicity_nodes,
-              Source = "ethnicity", Target = "boss_ethnicity",
-              Value = "n", NodeID = "ethnicity", colourScale = color_scale,
-              units = "occurrences", fontFamily = "arial",
-              sinksRight=FALSE, nodeWidth=40, fontSize=14, nodePadding=10)
-
-# Gender
-
-gender_nodes <- data.frame(gender = c("Men", "Women", "Men ", "Women "))
-
-gender_links <- d_america_allvars %>% 
-  filter(!is.na(gender),
-         !is.na(boss_gender)) %>% 
-  mutate(boss_gender = boss_gender + 2) %>% 
-  group_by(gender, boss_gender) %>% 
-  summarise(n = n()) %>% 
-  ungroup()
-
-sankeyNetwork(Links = gender_links, Nodes = gender_nodes,
-              Source = "gender", Target = "boss_gender",
-              Value = "n", NodeID = "gender", colourScale = 'd3.scaleOrdinal() .range(["#9B3634", "#96C9DC"])',
-              units = "occurrences", fontFamily = "arial",
-              sinksRight = FALSE, nodeWidth = 40, fontSize = 14, nodePadding = 10)
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-# TODO
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-
-# Race should include all possible combinations, like gender.
-
-# Name popularity?
-# - popularity cutoff and treat like
-
-# Random selection by companies (should make estimation easier)
-
 # Disclaimers:
 # - Results of this analysis do not necessarily reflect biases in hiring. 
 # - Since race and gender are inferred from names, and because race if defined very coarsely (only four categories),
